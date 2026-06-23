@@ -1,0 +1,21 @@
+# build files
+build/
+cmake-build-*/
+*.o
+*.so
+*.a
+*.exe
+
+# IDE
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# system
+.DS_Store
+Thumbs.db
