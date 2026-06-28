@@ -112,7 +112,7 @@ def main():
     # 力矩限幅，防止仿真发散
     torque_limit = np.array([150.0, 150.0, 150.0, 50.0, 50.0, 50.0])
 
-    velocity_limit = np.array([1.5, 1.5, 1.5, 1.5, 1.5, 1.5])
+    velocity_limit = np.array([2.0, 2.0, 2.0, 2.0, 2.0, 2.0])
     d.qfrc_applied[:] = 0.0
     dt = m.opt.timestep
     error = []
@@ -168,11 +168,13 @@ def main():
 
            
 
-            JJt = J @ J.T
-            N = np.eye(J.shape[1]) - J.T @ np.linalg.solve(JJt, J)
+            damping = 0.0
+            JJt = J @ J.T + damping**2 * np.eye(J.shape[0])
+            J_pinv = J.T @ np.linalg.solve(JJt, np.eye(J.shape[0]))
+            N = np.eye(J.shape[1]) - J_pinv @ J
             w = 2 * np.r_[init_q - q, 0]
             # 任务空间优先，null space 中执行二次任务（如关节回中立位置）
-            vel_d = J.T @ np.linalg.solve(JJt, v) + N @ w
+            vel_d = J_pinv @ v + N @ w
 
             
             lamb = lamb + vel_d[-1] * dt

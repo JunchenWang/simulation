@@ -54,7 +54,7 @@ def main():
 
 
     # 目标关节速度，单位 rad/s
-    vel_d = np.array([0.2, -0.2, 0.15, 0.1, 0.1, 0.1])
+    # vel_d = np.array([0.2, -0.2, 0.15, 0.1, 0.1, 0.1]) * 10
 
     # 速度 PI 参数
     kp_v = np.array([40.0, 40.0, 40.0, 20.0, 20.0, 20.0]) * 2
@@ -65,11 +65,11 @@ def main():
 
     # 积分限幅，防止 windup
     integral_limit = np.array([1.0, 1.0, 1.0, 0.5, 0.5, 0.5])
+    k_aw = np.ones(m.nv) * 0.5
 
     # 力矩限幅，防止仿真发散
     torque_limit = np.array([150.0, 150.0, 150.0, 50.0, 50.0, 50.0])
 
-    velocity_limit = np.array([1.5, 1.5, 1.5, 1.0, 1.0, 1.0])
     d.qfrc_applied[:] = 0.0
     dt = m.opt.timestep
     error = []
@@ -90,10 +90,8 @@ def main():
                 break
 
             time_step.append(d.time)
-            vel_d =  np.ones(m.nv)
+            vel_d =  np.ones(m.nv) * 1
             
-            # vel_d = np.clip(vel_d, -velocity_limit, velocity_limit)
-
             # 速度环
             vel_error = vel_d - qd
             error.append(qd)
@@ -108,18 +106,17 @@ def main():
             # tau -= d.qfrc_passive
 
             # 只对机械臂 6 个关节限幅
-            tau = np.clip(
+            tau_sat = np.clip(
                 tau,
                 -torque_limit,
                 torque_limit
             )
             # 清空后重新写入外加广义力
-            d.qfrc_applied[qvel_addrs] = tau
+            d.qfrc_applied[qvel_addrs] = tau_sat
             mujoco.mj_step2(m, d)
 
-            # 积分速度误差
-            vel_error_integral += vel_error * dt
-
+            # 积分速度误差 anti-windup：
+            vel_error_integral += vel_error * dt + k_aw * (tau_sat - tau) * dt
             # anti-windup：积分限幅
             vel_error_integral = np.clip(
                 vel_error_integral,
