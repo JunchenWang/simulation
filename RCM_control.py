@@ -108,7 +108,7 @@ def main():
 
     # 积分限幅，防止 windup
     integral_limit = np.array([1.0, 1.0, 1.0, 0.5, 0.5, 0.5])
-
+    k_aw = np.ones(m.nv) * 0.5
     # 力矩限幅，防止仿真发散
     torque_limit = np.array([150.0, 150.0, 150.0, 50.0, 50.0, 50.0])
 
@@ -153,6 +153,17 @@ def main():
             J = np.zeros((6, Jrcm.shape[1]))
             J[0:3] = Jrcm
             J[3:6,0:6] = J2
+
+            # 第二种计算
+            # u = prcm - p1
+            # w = p2 - p1
+            # w2 = np.linalg.norm(w)**2
+            # a = 2 * np.dot(u, w) * w - (u + w) / w2
+            # b = u / w2 - 2 * np.dot(u, w) * w
+            # Jlamb = a @ J1 + b @ J2
+            # lamb = np.dot(u, w) / w2
+            # Jrcm = J1 + lamb * (J2 - J1) + w.reshape(-1,1) @ Jlamb.reshape(1, -1)
+            # J = np.vstack([Jrcm, J2])
             
             prcm_act = p1 + lamb * (p2 - p1)
             
@@ -168,7 +179,7 @@ def main():
 
            
 
-            damping = 0.0
+            damping = 0.001
             JJt = J @ J.T + damping**2 * np.eye(J.shape[0])
             J_pinv = J.T @ np.linalg.solve(JJt, np.eye(J.shape[0]))
             N = np.eye(J.shape[1]) - J_pinv @ J
@@ -179,6 +190,7 @@ def main():
             
             lamb = lamb + vel_d[-1] * dt
             vel_d = np.clip(vel_d[0:-1], -velocity_limit, velocity_limit)
+            # vel_d = np.clip(vel_d, -velocity_limit, velocity_limit)
 
             # 速度环
             vel_error = vel_d - qd
@@ -190,17 +202,16 @@ def main():
             # tau -= d.qfrc_passive
 
             # 只对机械臂 6 个关节限幅
-            tau = np.clip(
+            tau_sat = np.clip(
                 tau,
                 -torque_limit,
                 torque_limit
             )
             # 清空后重新写入外加广义力
-            d.qfrc_applied[qvel_addrs] = tau
+            d.qfrc_applied[qvel_addrs] = tau_sat
 
-            # 积分速度误差
-            vel_error_integral += vel_error * dt
-
+             # 积分速度误差 anti-windup：
+            vel_error_integral += vel_error * dt + k_aw * (tau_sat - tau) * dt
             # anti-windup：积分限幅
             vel_error_integral = np.clip(
                 vel_error_integral,
